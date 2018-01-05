@@ -1,5 +1,5 @@
 {
-  "name": "@ipc/socket",
+  "name": "ipc-socket",
   "version": "1.0.0",
   "description": "Module for communication between services",
   "main": "build/index.js",

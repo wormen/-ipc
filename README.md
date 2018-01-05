@@ -1,10 +1,10 @@
 ## Install
 ```
-npm i -S @ipc/socket
+npm i -S ipc-socket
 ```
 
 ## Use server
-    const {Server} = require('@ipc/socket');
+    const {Server} = require('ipc-socket');
     const server = Server('testNamespase', 3500);
         
     server.handle('testHandle', (req, res) => {
@@ -21,7 +21,7 @@ npm i -S @ipc/socket
     });
     
 ## Use client
-    const {Client} = require('@ipc/socket');
+    const {Client} = require('ipc-socket');
                                            
     const client = Client('test', [
       {host: '127.0.0.1', port: 3500}
