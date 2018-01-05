@@ -17,6 +17,14 @@
   ],
   "author": "Oleg Bogdanov",
   "license": "MIT",
+  "homepage": "https://github.com/wormen/ipc",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/wormen/ipc.git"
+  },
+  "bugs": {
+    "url": "https://github.com/wormen/ipc/issues"
+  },
   "dependencies": {},
   "devDependencies": {
     "babel-cli": "^6.26.0",
