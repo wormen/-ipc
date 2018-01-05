@@ -1,24 +1,41 @@
 ## Install
-```
+```bash
 npm i -S ipc-socket
 ```
 
 ## Use server
 ```js
 const {Server} = require('ipc-socket');
-const server = Server('testNamespase', 3500);
+                                        
+const namespase = 'test';
+const server = Server(namespase, 3500);
     
 server.handle('testHandle', (req, res) => {
     console.log(req); // view request from customer
     res.send(null, Date.now()); // sending response to the client
 });
-  
+    
+// listen handle
+server.on(`${namespase}:ping`, (req, res) => {
+  console.log(typeof req, req)
+  // res.send(null, Date.now());
+});
+    
 // show metrics
 server.initMetrics();
 
 server.on('metrics', ({stats, statsQPS}) => {
   console.log('statsQPS -->', statsQPS);
   // console.log('stats -->', stats);
+});
+  
+// clients detect online/offline
+server.on('client:connect', client => {
+  console.log('client:connect', client)
+});
+  
+server.on('client:disconnect', client => {
+  console.log('client:disconnect', client)
 });
 ```
     
