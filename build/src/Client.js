@@ -67,6 +67,7 @@ var Client = function (_EventEmitter) {
     var maxSleep = _this._options.reconnectMaxSleep || _Time2.default.Seconds(10);
     _this._reconnectBase = Math.pow(maxSleep, 1 / _this._reconnectExp);
 
+    _this._clientID = _this._options.clientID || (0, _utils.GenerateHash)();
     _this._sockets = [];
     _this._curSock = 0;
     _this._reqno = 1;
@@ -296,7 +297,10 @@ var Client = function (_EventEmitter) {
     value: function ping() {
       var callback = arguments.length > 0 && arguments[0] !== undefined ? arguments[0] : _utils.noop;
 
-      this.send('ping', { t: Date.now() }, callback);
+      this.send('ping', {
+        clientID: this._clientID,
+        t: Date.now()
+      }, callback);
     }
   }, {
     key: 'send',

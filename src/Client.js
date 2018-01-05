@@ -7,7 +7,7 @@
 import net from 'net';
 import dns from 'dns';
 import {EventEmitter} from 'events';
-import {AddLineReader, getNS, noop, safeExecute} from './lib/utils';
+import {AddLineReader, GenerateHash, getNS, noop, safeExecute} from './lib/utils';
 import Time from './lib/Time';
 
 const defaultOpts = {
@@ -33,6 +33,7 @@ class Client extends EventEmitter {
     let maxSleep = this._options.reconnectMaxSleep || Time.Seconds(10);
     this._reconnectBase = Math.pow(maxSleep, 1 / this._reconnectExp);
 
+    this._clientID = this._options.clientID || GenerateHash();
     this._sockets = [];
     this._curSock = 0;
     this._reqno = 1;
@@ -217,7 +218,10 @@ class Client extends EventEmitter {
   };
 
   ping(callback = noop) {
-    this.send('ping', {t: Date.now()}, callback);
+    this.send('ping', {
+      clientID: this._clientID,
+      t: Date.now()
+    }, callback);
   };
 
   send(method, args, callback = noop, delay) {

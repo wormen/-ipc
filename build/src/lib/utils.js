@@ -9,6 +9,10 @@ var _typeof = typeof Symbol === "function" && typeof Symbol.iterator === "symbol
  ---------------------------------------------
  */
 
+function isNull(arg) {
+  return arg === null;
+}
+
 function isNullOrUndefined(arg) {
   return arg === null || arg === undefined;
 }
@@ -82,6 +86,35 @@ function getNS() {
   return arr.join(':');
 }
 
+/**
+ * Генерируем хэш
+ * @param length - длина хэша
+ * @constructor
+ */
+function GenerateHash() {
+  var length = arguments.length > 0 && arguments[0] !== undefined ? arguments[0] : 20;
+
+  var n = void 0;
+  var S = 'x';
+  var hash = function hash(s) {
+    if ((typeof s === 'undefined' ? 'undefined' : _typeof(s)) === Number && s === parseInt(s, 10)) {
+      s = Array(s + 1).join('x');
+    }
+
+    return s.replace(/x/g, function () {
+      n = Math.round(Math.random() * 61) + 48;
+      n = n > 57 ? n + 7 > 90 ? n + 13 : n + 7 : n;
+      return String.fromCharCode(n);
+    });
+  };
+
+  for (var i = 0; i < length; i++) {
+    S = S + 'x';
+  }
+
+  return hash(S);
+}
+
 module.exports = {
   getNS: getNS,
   noop: noop,
@@ -92,7 +125,9 @@ module.exports = {
   isFunction: isFunction,
   isNumber: isNumber,
   isJson: isJson,
+  isNull: isNull,
   AddLineReader: AddLineReader,
   isNullOrUndefined: isNullOrUndefined,
-  safeExecute: safeExecute
+  safeExecute: safeExecute,
+  GenerateHash: GenerateHash
 };

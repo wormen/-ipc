@@ -26,6 +26,14 @@ var _net2 = _interopRequireDefault(_net);
 
 var _events = require('events');
 
+var _Time = require('./lib/Time');
+
+var _Time2 = _interopRequireDefault(_Time);
+
+var _CheckClient = require('./lib/CheckClient');
+
+var _CheckClient2 = _interopRequireDefault(_CheckClient);
+
 var _utils = require('./lib/utils');
 
 function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
@@ -50,6 +58,7 @@ var statsd = {
 };
 var statsQPS = {};
 var stats = {};
+var clients = {};
 
 var Server = function (_EventEmitter) {
   _inherits(Server, _EventEmitter);
@@ -129,6 +138,26 @@ var Server = function (_EventEmitter) {
         }
       };
     }
+
+    /**
+     * Вызов метода
+     * @param name - название метода
+     * @param args
+     * @private
+     */
+
+  }, {
+    key: '_onHandle',
+    value: function _onHandle(name) {
+      var _methods, _get2;
+
+      for (var _len2 = arguments.length, args = Array(_len2 > 1 ? _len2 - 1 : 0), _key2 = 1; _key2 < _len2; _key2++) {
+        args[_key2 - 1] = arguments[_key2];
+      }
+
+      (_methods = this._methods)[name].apply(_methods, args);
+      (_get2 = _get(Server.prototype.__proto__ || Object.getPrototypeOf(Server.prototype), 'emit', this)).call.apply(_get2, [this, name].concat(args));
+    }
   }, {
     key: 'init',
     value: function init() {
@@ -138,8 +167,22 @@ var Server = function (_EventEmitter) {
       stats[this._stats_prefix] = 0;
       statsQPS[this._stats_prefix] = 0;
 
-      this._server = _net2.default.createServer(function (client) {
+      _get(Server.prototype.__proto__ || Object.getPrototypeOf(Server.prototype), 'on', this).call(this, (0, _utils.getNS)([this._namespace, 'ping']), function (req) {
+        if (!clients.hasOwnProperty(req.clientID)) {
+          clients[req.clientID] = new _CheckClient2.default(req.clientID);
 
+          clients[req.clientID].on('join', function () {
+            _get(Server.prototype.__proto__ || Object.getPrototypeOf(Server.prototype), 'emit', _this3).call(_this3, 'client:connect', { clientID: req.clientID });
+          });
+
+          clients[req.clientID].on('offline', function () {
+            _get(Server.prototype.__proto__ || Object.getPrototypeOf(Server.prototype), 'emit', _this3).call(_this3, 'client:disconnect', clients[req.clientID].getInfo);
+          });
+        }
+        clients[req.clientID].online();
+      });
+
+      this._server = _net2.default.createServer(function (client) {
         (0, _utils.AddLineReader)(client);
 
         client.on('line', function (data) {
@@ -173,7 +216,7 @@ var Server = function (_EventEmitter) {
               noCallback: true
             };
 
-            self._methods[request[1]](request[2], request[3] ? response : obj, this.remoteAddress);
+            self._onHandle(request[1], request[2], request[3] ? response : obj, this.remoteAddress);
           } else {
             response.send("method not found");
           }
@@ -226,8 +269,8 @@ var Server = function (_EventEmitter) {
 function Log() {
   var _console;
 
-  for (var _len2 = arguments.length, args = Array(_len2), _key2 = 0; _key2 < _len2; _key2++) {
-    args[_key2] = arguments[_key2];
+  for (var _len3 = arguments.length, args = Array(_len3), _key3 = 0; _key3 < _len3; _key3++) {
+    args[_key3] = arguments[_key3];
   }
 
   (_console = console).log.apply(_console, ['[IPC-SERVER]'].concat(args));

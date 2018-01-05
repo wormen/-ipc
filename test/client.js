@@ -10,6 +10,7 @@ const {Client} = require('../build');
 const client = Client('test', [
   {host: '127.0.0.1', port: 3500}
 ], {
+  clientID: 'test-id-1',
   reconnectMaxSleep: 1000
 });
 

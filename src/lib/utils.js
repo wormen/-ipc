@@ -5,6 +5,10 @@
  ---------------------------------------------
  */
 
+function isNull(arg) {
+  return arg === null;
+}
+
 function isNullOrUndefined(arg) {
   return arg === null || arg === undefined;
 }
@@ -78,6 +82,33 @@ function getNS(arr = []) {
   return arr.join(':')
 }
 
+/**
+ * Генерируем хэш
+ * @param length - длина хэша
+ * @constructor
+ */
+function GenerateHash(length = 20) {
+  let n;
+  let S = 'x';
+  let hash = s => {
+    if (typeof (s) === Number && s === parseInt(s, 10)) {
+      s = Array(s + 1).join('x');
+    }
+
+    return s.replace(/x/g, () => {
+      n = Math.round(Math.random() * 61) + 48;
+      n = n > 57 ? (n + 7 > 90 ? n + 13 : n + 7) : n;
+      return String.fromCharCode(n);
+    });
+  };
+
+  for (let i = 0; i < length; i++) {
+    S = S + 'x';
+  }
+
+  return hash(S);
+}
+
 module.exports = {
   getNS,
   noop,
@@ -88,7 +119,9 @@ module.exports = {
   isFunction,
   isNumber,
   isJson,
+  isNull,
   AddLineReader,
   isNullOrUndefined,
-  safeExecute
+  safeExecute,
+  GenerateHash
 };

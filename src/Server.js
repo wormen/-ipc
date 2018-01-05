@@ -7,6 +7,8 @@
 
 import net from 'net';
 import {EventEmitter} from 'events';
+import Time from './lib/Time';
+import CheckClient from './lib/CheckClient';
 import {AddLineReader, getNS, isFunction, isNullOrUndefined, isString, noop, safeExecute} from './lib/utils';
 
 const statsd = {
@@ -20,6 +22,7 @@ const statsd = {
 };
 let statsQPS = {};
 let stats = {};
+let clients = {};
 
 class Server extends EventEmitter {
   constructor(namespace, port, instance) {
@@ -82,13 +85,38 @@ class Server extends EventEmitter {
     };
   }
 
+  /**
+   * Вызов метода
+   * @param name - название метода
+   * @param args
+   * @private
+   */
+  _onHandle(name, ...args) {
+    this._methods[name](...args);
+    super.emit(name, ...args);
+  }
+
   init() {
     let self = this;
     stats[this._stats_prefix] = 0;
     statsQPS[this._stats_prefix] = 0;
 
-    this._server = net.createServer((client) => {
+    super.on(getNS([this._namespace, 'ping']), (req) => {
+      if (!clients.hasOwnProperty(req.clientID)) {
+        clients[req.clientID] = new CheckClient(req.clientID);
 
+        clients[req.clientID].on('join', () => {
+          super.emit('client:connect', {clientID: req.clientID});
+        });
+
+        clients[req.clientID].on('offline', () => {
+          super.emit('client:disconnect', clients[req.clientID].getInfo);
+        });
+      }
+      clients[req.clientID].online();
+    });
+
+    this._server = net.createServer((client) => {
       AddLineReader(client);
 
       client.on('line', function (data) {
@@ -122,7 +150,7 @@ class Server extends EventEmitter {
             noCallback: true
           };
 
-          self._methods[request[1]](request[2], (request[3] ? response : obj), this.remoteAddress);
+          self._onHandle(request[1], request[2], (request[3] ? response : obj), this.remoteAddress)
         } else {
           response.send("method not found");
         }
