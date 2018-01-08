@@ -26,13 +26,9 @@ var _net2 = _interopRequireDefault(_net);
 
 var _events = require('events');
 
-var _Time = require('./lib/Time');
+var _SocketClient = require('./SocketClient');
 
-var _Time2 = _interopRequireDefault(_Time);
-
-var _CheckClient = require('./lib/CheckClient');
-
-var _CheckClient2 = _interopRequireDefault(_CheckClient);
+var _SocketClient2 = _interopRequireDefault(_SocketClient);
 
 var _utils = require('./lib/utils');
 
@@ -76,6 +72,9 @@ var Server = function (_EventEmitter) {
     _this._host = '0.0.0.0';
     _this._port = port || 8500;
     _this._stats_prefix = (0, _utils.getNS)((0, _utils.isNullOrUndefined)(instance) ? [namespace] : [namespace, instance]);
+
+    _this._reqno = 0; // порядковый номер запроса
+
     _this.init();
     return _this;
   }
@@ -159,33 +158,68 @@ var Server = function (_EventEmitter) {
       (_get2 = _get(Server.prototype.__proto__ || Object.getPrototypeOf(Server.prototype), 'emit', this)).call.apply(_get2, [this, name].concat(args));
     }
   }, {
+    key: 'sendClient',
+    value: function sendClient(handleName) {
+      var _this3 = this;
+
+      var data = arguments.length > 1 && arguments[1] !== undefined ? arguments[1] : {};
+      var opts = arguments.length > 2 && arguments[2] !== undefined ? arguments[2] : { clientID: null, sendAll: true };
+
+      if (!(0, _utils.isString)(handleName)) {
+        return;
+      }
+
+      var _send = function _send(id) {
+        ++_this3._reqno;
+        clients[id].send(handleName, data, _this3._reqno);
+      };
+
+      if ((0, _utils.isString)(opts.clientID) && clients.hasOwnProperty(opts.clientID)) {
+        opts.sendAll = false;
+        _send(opts.clientID);
+      }
+
+      if (opts.sendAll === true) {
+        for (var id in clients) {
+          _send(id);
+        }
+      }
+    }
+  }, {
     key: 'init',
     value: function init() {
-      var _this3 = this;
+      var _this4 = this;
 
       var self = this;
       stats[this._stats_prefix] = 0;
       statsQPS[this._stats_prefix] = 0;
 
       _get(Server.prototype.__proto__ || Object.getPrototypeOf(Server.prototype), 'on', this).call(this, (0, _utils.getNS)([this._namespace, 'ping']), function (req) {
-        if (!clients.hasOwnProperty(req.clientID)) {
-          clients[req.clientID] = new _CheckClient2.default(req.clientID);
-
-          clients[req.clientID].on('join', function () {
-            _get(Server.prototype.__proto__ || Object.getPrototypeOf(Server.prototype), 'emit', _this3).call(_this3, 'client:connect', { clientID: req.clientID });
-          });
-
-          clients[req.clientID].on('offline', function () {
-            _get(Server.prototype.__proto__ || Object.getPrototypeOf(Server.prototype), 'emit', _this3).call(_this3, 'client:disconnect', clients[req.clientID].getInfo);
-          });
+        if (clients.hasOwnProperty(req.clientID)) {
+          clients[req.clientID].online();
         }
-        clients[req.clientID].online();
       });
 
-      this._server = _net2.default.createServer(function (client) {
-        (0, _utils.AddLineReader)(client);
+      this._server = _net2.default.createServer(function (socket) {
+        (0, _utils.AddLineReader)(socket);
 
-        client.on('line', function (data) {
+        socket.on('clientInfo', function (data) {
+          var _cl = clients[data.clientID] = new _SocketClient2.default(data, socket);
+
+          if (!_cl.isOnline) {
+            _cl.on('join', function () {
+              _get(Server.prototype.__proto__ || Object.getPrototypeOf(Server.prototype), 'emit', _this4).call(_this4, 'client:connect', { clientID: data.clientID });
+            });
+
+            _cl.on('offline', function () {
+              _get(Server.prototype.__proto__ || Object.getPrototypeOf(Server.prototype), 'emit', _this4).call(_this4, 'client:disconnect', clients[data.clientID].getInfo);
+            });
+          }
+
+          _cl.online();
+        });
+
+        socket.on('line', function (data) {
           var request = (0, _utils.safeExecute)(JSON.parse, data, []);
           if (!request[0]) return false;
 
@@ -205,7 +239,7 @@ var Server = function (_EventEmitter) {
               data = (0, _utils.safeExecute)(JSON.stringify, [request[0], error, data], null);
               if (!data) return false;
 
-              client.write(data + '\n');
+              socket.write(data + '\n');
             }
           };
 
@@ -224,21 +258,21 @@ var Server = function (_EventEmitter) {
           checkActiveConnection();
         });
 
-        client.on('error', function (err) {
+        socket.on('error', function (err) {
           ErrLog('client error', err);
         });
 
-        client.on('close', function () {
-          client = null;
+        socket.on('close', function () {
+          socket = null;
         });
 
         function checkActiveConnection() {
           if (stats[self._stats_prefix] >= 1e4) {
-            client.pause();
-            client.paused = true;
-          } else if (client.paused) {
-            client.resume();
-            client.paused = false;
+            socket.pause();
+            socket.paused = true;
+          } else if (socket.paused) {
+            socket.resume();
+            socket.paused = false;
           }
         }
       });
@@ -247,17 +281,17 @@ var Server = function (_EventEmitter) {
         Log(error.code);
 
         if (!String(error.code).includes('EADDRINUSE')) {
-          _this3.init();
+          _this4.init();
         } else {
           throw error;
         }
       });
 
       this._server.listen(this._port, this._host, function () {
-        Log('server start at port', _this3._port);
+        Log('server start at port', _this4._port);
 
-        _this3.handle('ping', function (req, res) {
-          res.send(null, 'pong');
+        _this4.handle('ping', function (req, res) {
+          res.send(null, 'ping ok');
         });
       });
     }

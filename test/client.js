@@ -14,12 +14,6 @@ const client = Client('test', [
   reconnectMaxSleep: 1000
 });
 
-const client2 = Client('test2', [
-  {host: '127.0.0.1', port: 3500}
-], {
-  reconnectMaxSleep: 1000
-});
-
 
 let timeout = 500; //ms
 client.connect((err) => {
@@ -43,26 +37,21 @@ client.connect((err) => {
 
 client.on('connect', val => {
   console.log('connect -->', val);
+
+
 });
 
-client2.connect((err) => {
-  if (err) {
-    throw err;
-  }
-});
-
-client2.on('connect', val => {
-  console.log('connect 2 -->', val);
+client.on('handle:testHandle', val => {
+  console.log('handle:testHandle', val);
 });
 
 for (let i = 0; i < 5e4; i++) {
   let obj = {i, t: Date.now()};
-  // console.log(obj);
   client.send('testHandle', obj, () => {
   }, 0);
 
-  // client.emit('send', {
-  //   handle: 'testHandle',
-  //   data: obj
-  // })
+  client.emit('send', {
+    handle: 'testHandle',
+    data: obj
+  })
 }

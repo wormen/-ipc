@@ -7,8 +7,7 @@
 
 import net from 'net';
 import {EventEmitter} from 'events';
-import Time from './lib/Time';
-import CheckClient from './lib/CheckClient';
+import SocketClient from './SocketClient';
 import {AddLineReader, getNS, isFunction, isNullOrUndefined, isString, noop, safeExecute} from './lib/utils';
 
 const statsd = {
@@ -36,6 +35,9 @@ class Server extends EventEmitter {
     this._host = '0.0.0.0';
     this._port = port || 8500;
     this._stats_prefix = getNS(isNullOrUndefined(instance) ? [namespace] : [namespace, instance]);
+
+    this._reqno = 0; // порядковый номер запроса
+
     this.init();
   }
 
@@ -96,30 +98,59 @@ class Server extends EventEmitter {
     super.emit(name, ...args);
   }
 
+  sendClient(handleName, data = {}, opts = {clientID: null, sendAll: true}) {
+    if (!isString(handleName)) {
+      return;
+    }
+
+    let _send = (id) => {
+      ++this._reqno;
+      clients[id].send(handleName, data, this._reqno);
+    };
+
+    if (isString(opts.clientID) && clients.hasOwnProperty(opts.clientID)) {
+      opts.sendAll = false;
+      _send(opts.clientID);
+    }
+
+    if (opts.sendAll === true) {
+      for (let id in clients) {
+        _send(id);
+      }
+    }
+  }
+
   init() {
     let self = this;
     stats[this._stats_prefix] = 0;
     statsQPS[this._stats_prefix] = 0;
 
     super.on(getNS([this._namespace, 'ping']), (req) => {
-      if (!clients.hasOwnProperty(req.clientID)) {
-        clients[req.clientID] = new CheckClient(req.clientID);
-
-        clients[req.clientID].on('join', () => {
-          super.emit('client:connect', {clientID: req.clientID});
-        });
-
-        clients[req.clientID].on('offline', () => {
-          super.emit('client:disconnect', clients[req.clientID].getInfo);
-        });
+      if (clients.hasOwnProperty(req.clientID)) {
+        clients[req.clientID].online();
       }
-      clients[req.clientID].online();
     });
 
-    this._server = net.createServer((client) => {
-      AddLineReader(client);
+    this._server = net.createServer((socket) => {
+      AddLineReader(socket);
 
-      client.on('line', function (data) {
+      socket.on('clientInfo', (data) => {
+        let _cl = clients[data.clientID] = new SocketClient(data, socket);
+
+        if (!_cl.isOnline) {
+          _cl.on('join', () => {
+            super.emit('client:connect', {clientID: data.clientID});
+          });
+
+          _cl.on('offline', () => {
+            super.emit('client:disconnect', clients[data.clientID].getInfo);
+          });
+        }
+
+        _cl.online();
+      });
+
+      socket.on('line', function (data) {
         let request = safeExecute(JSON.parse, data, []);
         if (!request[0]) return false;
 
@@ -139,7 +170,7 @@ class Server extends EventEmitter {
             data = safeExecute(JSON.stringify, [request[0], error, data], null);
             if (!data) return false;
 
-            client.write(data + '\n');
+            socket.write(data + '\n');
           }
         };
 
@@ -158,21 +189,21 @@ class Server extends EventEmitter {
         checkActiveConnection();
       });
 
-      client.on('error', (err) => {
+      socket.on('error', (err) => {
         ErrLog('client error', err);
       });
 
-      client.on('close', () => {
-        client = null;
+      socket.on('close', () => {
+        socket = null;
       });
 
       function checkActiveConnection() {
         if (stats[self._stats_prefix] >= 1e4) {
-          client.pause();
-          client.paused = true;
-        } else if (client.paused) {
-          client.resume();
-          client.paused = false;
+          socket.pause();
+          socket.paused = true;
+        } else if (socket.paused) {
+          socket.resume();
+          socket.paused = false;
         }
       }
     });
@@ -191,7 +222,7 @@ class Server extends EventEmitter {
       Log('server start at port', this._port);
 
       this.handle('ping', (req, res) => {
-        res.send(null, 'pong');
+        res.send(null, 'ping ok');
       });
     });
   }

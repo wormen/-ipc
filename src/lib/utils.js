@@ -57,12 +57,29 @@ function AddLineReader(socket) {
   let chunk = '';
 
   socket.on('data', (data) => {
-    chunk += data.toString();
-    lines = chunk.split(`\n`);
+    lines = data.toString().split(`\n`);
     chunk = lines.pop();
 
-    while (lines.length) {
-      socket.emit('line', lines.shift());
+    if (data.toString().includes('event') && data.toString().includes('data')) {
+      lines = lines.shift();
+
+      if (isJson(lines)) {
+        lines = JSON.parse(lines);
+      }
+
+      if (Array.isArray(lines)) {
+        lines = lines.pop();
+      }
+
+      if (lines.hasOwnProperty('name')) {
+        socket.emit(lines.event, lines.name, lines.data);
+      } else {
+        socket.emit(lines.event, lines.data);
+      }
+    } else {
+      while (lines.length) {
+        socket.emit('line', lines.shift());
+      }
     }
   });
 }

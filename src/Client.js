@@ -7,13 +7,14 @@
 import net from 'net';
 import dns from 'dns';
 import {EventEmitter} from 'events';
-import {AddLineReader, GenerateHash, getNS, noop, safeExecute} from './lib/utils';
+import {AddLineReader, encode, getNS, isNullOrUndefined, noop, safeExecute} from './lib/utils';
 import Time from './lib/Time';
 
 const defaultOpts = {
   timeout: Time.Minute(2),
   autoPing: true,
-  autoPingTimeout: Time.Seconds(1)
+  autoPingTimeout: Time.Seconds(1),
+  clientID: null
 };
 
 class Client extends EventEmitter {
@@ -27,18 +28,21 @@ class Client extends EventEmitter {
       ? Object.assign({}, defaultOpts, options)
       : Object.assign({}, defaultOpts);
 
+    this._checkRequiredFields();
     this._checkConfig(config);
 
     this._reconnectExp = this._options.reconnectExp || 10;
     let maxSleep = this._options.reconnectMaxSleep || Time.Seconds(10);
     this._reconnectBase = Math.pow(maxSleep, 1 / this._reconnectExp);
 
-    this._clientID = this._options.clientID || GenerateHash();
+    this._clientID = this._options.clientID;
     this._sockets = [];
     this._curSock = 0;
     this._reqno = 1;
     this._queue = {};
     this._state = 0;
+
+    this._methods = {};
 
     this._init();
   }
@@ -53,6 +57,12 @@ class Client extends EventEmitter {
         this.send(String(obj.handle), obj.data, callback, obj.delay);
       }
     });
+  }
+
+  _checkRequiredFields() {
+    if (isNullOrUndefined(this._options.clientID) || String(this._options.clientID).length === 0) {
+      throw this.Error('Not specified "clientID" field');
+    }
   }
 
   _checkConfig(config) {
@@ -112,6 +122,11 @@ class Client extends EventEmitter {
         setTimeout(real_connect.bind(this), sleep, index);
       };
 
+      let sendPrivate = (data) => {
+        ++this._reqno;
+        socket.write(encode([this._reqno, data]) + '\n');
+      };
+
       socket.on('error', errback);
 
       socket.on('connect', () => {
@@ -123,6 +138,15 @@ class Client extends EventEmitter {
           host: this._servers[index].host,
           port: this._servers[index].port,
           namespace: this._namespace
+        });
+
+        // отправляем служебную о клиенте информацию на сервер
+        sendPrivate({
+          event: 'clientInfo',
+          data: {
+            clientID: this._clientID,
+            token: this._options.token || null
+          }
         });
 
         socket.removeListener('error', errback);
@@ -140,6 +164,10 @@ class Client extends EventEmitter {
             queue[json[0]].fn(json[1], json[2]);
             delete queue[json[0]];
           }
+        });
+
+        socket.on('handle', (name, data) => {
+          super.emit(getNS(['handle', name]), data);
         });
 
         if (this._sockets[index]) {
@@ -295,7 +323,7 @@ class Client extends EventEmitter {
       }
     }
     setTimeout(this.clean.bind(this), 100);
-  };
+  }
 }
 
 export default function (namespace, config, options) {

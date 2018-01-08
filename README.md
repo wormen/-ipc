@@ -31,7 +31,24 @@ server.on('metrics', ({stats, statsQPS}) => {
   
 // clients detect online/offline
 server.on('client:connect', client => {
-  console.log('client:connect', client)
+    console.log('client:connect', client);
+  
+    // send from clientID
+    server.sendClient('testHandle', {
+      t: Date.now(),
+      n: 1
+    }, {clientID: 'test-id-1'});
+    
+    server.sendClient('testHandle', {
+      t: Date.now(),
+      n: 2
+    }, {clientID: 'test-id-2'});
+    
+    // send all clients
+    server.sendClient('testHandle', {
+      t: Date.now(),
+      n: 3
+    });
 });
   
 server.on('client:disconnect', client => {
@@ -70,5 +87,10 @@ client.on('connect', obj => {
   }, timeout);
     
   client.send('testHandle', obj);
+});
+      
+// listen client handle
+client.on('handle:testHandle', val => {
+  console.log('handle:testHandle', val);
 });
 ```

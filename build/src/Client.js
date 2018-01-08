@@ -6,6 +6,8 @@ Object.defineProperty(exports, "__esModule", {
 
 var _createClass = function () { function defineProperties(target, props) { for (var i = 0; i < props.length; i++) { var descriptor = props[i]; descriptor.enumerable = descriptor.enumerable || false; descriptor.configurable = true; if ("value" in descriptor) descriptor.writable = true; Object.defineProperty(target, descriptor.key, descriptor); } } return function (Constructor, protoProps, staticProps) { if (protoProps) defineProperties(Constructor.prototype, protoProps); if (staticProps) defineProperties(Constructor, staticProps); return Constructor; }; }();
 
+var _get = function get(object, property, receiver) { if (object === null) object = Function.prototype; var desc = Object.getOwnPropertyDescriptor(object, property); if (desc === undefined) { var parent = Object.getPrototypeOf(object); if (parent === null) { return undefined; } else { return get(parent, property, receiver); } } else if ("value" in desc) { return desc.value; } else { var getter = desc.get; if (getter === undefined) { return undefined; } return getter.call(receiver); } };
+
 exports.default = function (namespace, config, options) {
   return new Client(namespace, config, options);
 };
@@ -43,7 +45,8 @@ function _inherits(subClass, superClass) { if (typeof superClass !== "function" 
 var defaultOpts = {
   timeout: _Time2.default.Minute(2),
   autoPing: true,
-  autoPingTimeout: _Time2.default.Seconds(1)
+  autoPingTimeout: _Time2.default.Seconds(1),
+  clientID: null
 };
 
 var Client = function (_EventEmitter) {
@@ -61,18 +64,21 @@ var Client = function (_EventEmitter) {
 
     _this._options = Object.keys(options).length > 0 ? Object.assign({}, defaultOpts, options) : Object.assign({}, defaultOpts);
 
+    _this._checkRequiredFields();
     _this._checkConfig(config);
 
     _this._reconnectExp = _this._options.reconnectExp || 10;
     var maxSleep = _this._options.reconnectMaxSleep || _Time2.default.Seconds(10);
     _this._reconnectBase = Math.pow(maxSleep, 1 / _this._reconnectExp);
 
-    _this._clientID = _this._options.clientID || (0, _utils.GenerateHash)();
+    _this._clientID = _this._options.clientID;
     _this._sockets = [];
     _this._curSock = 0;
     _this._reqno = 1;
     _this._queue = {};
     _this._state = 0;
+
+    _this._methods = {};
 
     _this._init();
     return _this;
@@ -95,6 +101,13 @@ var Client = function (_EventEmitter) {
           _this2.send(String(obj.handle), obj.data, callback, obj.delay);
         }
       });
+    }
+  }, {
+    key: '_checkRequiredFields',
+    value: function _checkRequiredFields() {
+      if ((0, _utils.isNullOrUndefined)(this._options.clientID) || String(this._options.clientID).length === 0) {
+        throw this.Error('Not specified "clientID" field');
+      }
     }
   }, {
     key: '_checkConfig',
@@ -188,6 +201,11 @@ var Client = function (_EventEmitter) {
           setTimeout(real_connect.bind(_this4), sleep, index);
         };
 
+        var sendPrivate = function sendPrivate(data) {
+          ++_this4._reqno;
+          socket.write((0, _utils.encode)([_this4._reqno, data]) + '\n');
+        };
+
         socket.on('error', errback);
 
         socket.on('connect', function () {
@@ -199,6 +217,15 @@ var Client = function (_EventEmitter) {
             host: _this4._servers[index].host,
             port: _this4._servers[index].port,
             namespace: _this4._namespace
+          });
+
+          // отправляем служебную о клиенте информацию на сервер
+          sendPrivate({
+            event: 'clientInfo',
+            data: {
+              clientID: _this4._clientID,
+              token: _this4._options.token || null
+            }
           });
 
           socket.removeListener('error', errback);
@@ -216,6 +243,10 @@ var Client = function (_EventEmitter) {
               queue[json[0]].fn(json[1], json[2]);
               delete queue[json[0]];
             }
+          });
+
+          socket.on('handle', function (name, data) {
+            _get(Client.prototype.__proto__ || Object.getPrototypeOf(Client.prototype), 'emit', _this4).call(_this4, (0, _utils.getNS)(['handle', name]), data);
           });
 
           if (_this4._sockets[index]) {
