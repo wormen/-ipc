@@ -75,7 +75,7 @@ client.connect((err) => {
 client.on('connect', obj => {
   console.log('connect info -->', obj);
   
-  let obj = {i, t: Date.now()};
+  obj = {t: Date.now()};
   let timeout = 500; //ms
   
   // send with delay
