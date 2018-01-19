@@ -47,15 +47,15 @@ var CheckClient = function (_EventEmitter) {
 
     _this._reqno = 1;
 
-    var _sendSocket = function _sendSocket(data) {
-      socket.write((0, _utils.encode)([_this._reqno, data]) + "\n");
+    var _sendSocket = function _sendSocket(data, done) {
+      socket.write((0, _utils.encode)([_this._reqno, data]) + "\n", done);
     };
 
-    _get(CheckClient.prototype.__proto__ || Object.getPrototypeOf(CheckClient.prototype), "on", _this).call(_this, 'send', function (_ref) {
+    _get(CheckClient.prototype.__proto__ || Object.getPrototypeOf(CheckClient.prototype), "on", _this).call(_this, 'send', function (_ref, done) {
       var handleName = _ref.handleName,
           data = _ref.data;
 
-      _sendSocket({ event: 'handle', name: handleName, data: data });
+      _sendSocket({ event: 'handle', name: handleName, data: data }, done);
     });
     return _this;
   }
@@ -100,6 +100,8 @@ var CheckClient = function (_EventEmitter) {
      * Хэндлер для отправки данных на клиент
      * @param {String} handleName - название метода
      * @param {Object} data
+     * @param {Number} reqno
+     * @param {Function} done
      */
 
   }, {
@@ -107,9 +109,10 @@ var CheckClient = function (_EventEmitter) {
     value: function send(handleName) {
       var data = arguments.length > 1 && arguments[1] !== undefined ? arguments[1] : {};
       var reqno = arguments[2];
+      var done = arguments.length > 3 && arguments[3] !== undefined ? arguments[3] : _utils.noop;
 
       this._reqno = reqno;
-      _get(CheckClient.prototype.__proto__ || Object.getPrototypeOf(CheckClient.prototype), "emit", this).call(this, 'send', { handleName: handleName, data: data });
+      _get(CheckClient.prototype.__proto__ || Object.getPrototypeOf(CheckClient.prototype), "emit", this).call(this, 'send', { handleName: handleName, data: data }, done);
     }
   }, {
     key: "getInfo",

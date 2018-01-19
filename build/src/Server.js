@@ -160,29 +160,38 @@ var Server = function (_EventEmitter) {
   }, {
     key: 'sendClient',
     value: function sendClient(handleName) {
+      var data = arguments.length > 1 && arguments[1] !== undefined ? arguments[1] : {};
+
       var _this3 = this;
 
-      var data = arguments.length > 1 && arguments[1] !== undefined ? arguments[1] : {};
       var opts = arguments.length > 2 && arguments[2] !== undefined ? arguments[2] : { clientID: null, sendAll: true };
+      var callback = arguments.length > 3 && arguments[3] !== undefined ? arguments[3] : _utils.noop;
 
       if (!(0, _utils.isString)(handleName)) {
         return;
       }
 
-      var _send = function _send(id) {
+      if ((0, _utils.isFunction)(opts)) {
+        callback = opts;
+        opts = { clientID: null, sendAll: true };
+      }
+
+      var _send = function _send(id, done) {
         ++_this3._reqno;
-        clients[id].send(handleName, data, _this3._reqno);
+        clients[id].send(handleName, data, _this3._reqno, done);
       };
 
       if ((0, _utils.isString)(opts.clientID) && clients.hasOwnProperty(opts.clientID)) {
         opts.sendAll = false;
-        _send(opts.clientID);
+        _send(opts.clientID, callback);
       }
 
       if (opts.sendAll === true) {
         for (var id in clients) {
           _send(id);
         }
+
+        callback();
       }
     }
   }, {
@@ -301,20 +310,18 @@ var Server = function (_EventEmitter) {
 }(_events.EventEmitter);
 
 function Log() {
-  var _console;
+  if (process.env.hasOwnProperty('IPC_DEBUG_LEVEL')) {
+    var _console;
 
-  for (var _len3 = arguments.length, args = Array(_len3), _key3 = 0; _key3 < _len3; _key3++) {
-    args[_key3] = arguments[_key3];
+    (_console = console).log.apply(_console, arguments);
   }
-
-  (_console = console).log.apply(_console, ['[IPC-SERVER]'].concat(args));
 }
 
 function ErrLog(e) {
   if (typeof e === 'string') {
     e = new Error(e);
   }
-  console.error('[IPC-SERVER]', e);
+  console.error(e);
 }
 
 function sendStats() {
