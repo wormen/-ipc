@@ -23,12 +23,12 @@ export default class CheckClient extends EventEmitter {
 
     this._reqno = 1;
 
-    const _sendSocket = (data) => {
-      socket.write(encode([this._reqno, data]) + `\n`);
+    const _sendSocket = (data, done) => {
+      socket.write(encode([this._reqno, data]) + `\n`, done);
     };
 
-    super.on('send', ({handleName, data}) => {
-      _sendSocket({event: 'handle', name: handleName, data});
+    super.on('send', ({handleName, data}, done) => {
+      _sendSocket({event: 'handle', name: handleName, data}, done);
     });
   }
 
@@ -73,9 +73,11 @@ export default class CheckClient extends EventEmitter {
    * Хэндлер для отправки данных на клиент
    * @param {String} handleName - название метода
    * @param {Object} data
+   * @param {Number} reqno
+   * @param {Function} done
    */
-  send(handleName, data = {}, reqno) {
+  send(handleName, data = {}, reqno, done = noop) {
     this._reqno = reqno;
-    super.emit('send', {handleName, data});
+    super.emit('send', {handleName, data}, done);
   }
 }

@@ -334,5 +334,5 @@ function ErrLog(e) {
   if (typeof e === 'string') {
     e = new Error(e);
   }
-  console.error('[IPC-CLIENT]', e);
+  console.error(e);
 }

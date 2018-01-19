@@ -98,25 +98,32 @@ class Server extends EventEmitter {
     super.emit(name, ...args);
   }
 
-  sendClient(handleName, data = {}, opts = {clientID: null, sendAll: true}) {
+  sendClient(handleName, data = {}, opts = {clientID: null, sendAll: true}, callback = noop) {
     if (!isString(handleName)) {
       return;
     }
 
-    let _send = (id) => {
+    if (isFunction(opts)) {
+      callback = opts;
+      opts = {clientID: null, sendAll: true};
+    }
+
+    let _send = (id, done) => {
       ++this._reqno;
-      clients[id].send(handleName, data, this._reqno);
+      clients[id].send(handleName, data, this._reqno, done);
     };
 
     if (isString(opts.clientID) && clients.hasOwnProperty(opts.clientID)) {
       opts.sendAll = false;
-      _send(opts.clientID);
+      _send(opts.clientID, callback);
     }
 
     if (opts.sendAll === true) {
       for (let id in clients) {
         _send(id);
       }
+
+      callback();
     }
   }
 
@@ -240,14 +247,16 @@ export default function (namespace, port = 8500, instance) {
 
 
 function Log(...args) {
-  console.log('[IPC-SERVER]', ...args);
+  if (process.env.hasOwnProperty('IPC_DEBUG_LEVEL')) {
+    console.log(...args);
+  }
 }
 
 function ErrLog(e) {
   if (typeof e === 'string') {
     e = new Error(e);
   }
-  console.error('[IPC-SERVER]', e);
+  console.error(e);
 }
 
 function sendStats() {
