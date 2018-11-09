@@ -5,7 +5,7 @@ npm i -S ipc-socket
 
 ## Use server
 ```js
-const {Server} = require('ipc-socket');
+import {Server} from 'ipc-socket';
                                         
 const namespase = 'test';
 const server = Server(namespase, 3500);
@@ -58,7 +58,7 @@ server.on('client:disconnect', client => {
     
 ## Use client
 ```js
-const {Client} = require('ipc-socket');
+import {Client} from 'ipc-socket';
                                            
 const client = Client('test', [
   {host: '127.0.0.1', port: 3500}

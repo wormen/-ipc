@@ -5,8 +5,12 @@
  ---------------------------------------------
  */
 
-import Server from './src/Server';
 import Client from './src/Client';
+import Server from './src/Server';
+import EVENTS from './src/_events';
 
-module.exports.Server = Server;
-module.exports.Client = Client;
+export {
+  Client,
+  EVENTS,
+  Server
+}

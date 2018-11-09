@@ -1,30 +1,23 @@
-/**
- Copyright © Oleg Bogdanov
- Developer: Oleg Bogdanov
- Contacts: https://github.com/wormen
- ---------------------------------------------
- */
-
-function isNull(arg) {
+function isNull(arg: any): boolean {
   return arg === null;
 }
 
-function isNullOrUndefined(arg) {
+function isNullOrUndefined(arg: any): boolean {
   return arg === null || arg === undefined;
 }
 
-function encode(val) {
+function encode(val: any): string {
   return JSON.stringify(val);
 }
 
-function decode(val) {
+function decode(val: string | any): object | object[] | string[] | number[] {
   if (isJson(val)) {
     return JSON.parse(val);
   }
   return val;
 }
 
-function isJson(str) {
+function isJson(str: string): boolean {
   try {
     JSON.parse(str);
   } catch (e) {
@@ -33,23 +26,23 @@ function isJson(str) {
   return true;
 }
 
-function isObject(arg) {
+function isObject(arg: any): boolean {
   return arg !== null && typeof arg === 'object';
 }
 
-function isFunction(arg) {
+function isFunction(arg: any): boolean {
   return typeof arg === 'function';
 }
 
-function isString(arg) {
+function isString(arg: any): boolean {
   return typeof arg === 'string';
 }
 
-function isNumber(arg) {
+function isNumber(arg: any): boolean {
   return typeof arg === 'number';
 }
 
-function noop() {
+function noop(...args): void {
 }
 
 function AddLineReader(socket) {
@@ -104,11 +97,11 @@ function getNS(arr = []) {
  * @param length - длина хэша
  * @constructor
  */
-function GenerateHash(length = 20) {
+function GenerateHash(length: number = 20): string {
   let n;
   let S = 'x';
   let hash = s => {
-    if (typeof (s) === Number && s === parseInt(s, 10)) {
+    if (typeof (s) === 'number' && s === parseInt(String(s), 10)) {
       s = Array(s + 1).join('x');
     }
 
@@ -126,7 +119,7 @@ function GenerateHash(length = 20) {
   return hash(S);
 }
 
-module.exports = {
+export {
   getNS,
   noop,
   decode,

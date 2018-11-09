@@ -3,11 +3,7 @@
  Developer: Oleg Bogdanov
  Contacts: olegbogdanov86@gmail.com
  ---------------------------------------------
- класс для работы с датами
-
  */
-
-"use strict";
 
 class Time {
 
@@ -18,7 +14,7 @@ class Time {
    * @returns {number}
    * @constructor
    */
-  Seconds(val, isUnix = false) {
+  Seconds(val: number, isUnix: boolean = false): number {
     if (isUnix)
       return val;
     else
@@ -32,7 +28,7 @@ class Time {
    * @returns {number}
    * @constructor
    */
-  Minute(val, isUnix = false) {
+  Minute(val: number, isUnix: boolean = false): number {
     return val * this.Seconds(60, isUnix);
   }
 
@@ -43,7 +39,7 @@ class Time {
    * @returns {number}
    * @constructor
    */
-  Hours(val, isUnix = false) {
+  Hours(val: number, isUnix: boolean = false): number {
     return val * this.Minute(60, isUnix);
   }
 
@@ -54,7 +50,7 @@ class Time {
    * @returns {number}
    * @constructor
    */
-  Days(val, isUnix = false) {
+  Days(val: number, isUnix: boolean = false): number {
     return val * this.Hours(24, isUnix);
   }
 
@@ -63,9 +59,9 @@ class Time {
    * @returns {Number}
    * @constructor
    */
-  get Unix() {
-    return parseInt(new Date().getTime() / 1000);
+  get Unix(): number {
+    return parseInt(String(new Date().getTime() / 1000));
   }
 }
 
-module.exports = module.exports['default'] = new Time();
+export default new Time();

@@ -1,15 +1,16 @@
-/**
- Copyright © Oleg Bogdanov
- Developer: Oleg Bogdanov
- Contacts: https://github.com/wormen
- ---------------------------------------------
- */
-
-import Time from "./lib/Time";
-import {encode, noop} from "./lib/utils";
+import Time from './lib/Time';
+import {encode, noop} from './lib/utils';
 import {EventEmitter} from 'events';
+import Timeout = NodeJS.Timeout;
+
+import EVENTS from './_events';
 
 export default class CheckClient extends EventEmitter {
+  private _info = null;
+  private _online = null;
+  private _reqno: number = 1;
+  private _timeout: Timeout | null = null;
+
   constructor(opts, socket) {
     super();
 
@@ -18,17 +19,12 @@ export default class CheckClient extends EventEmitter {
       token: opts.token
     };
 
-    this._online = null;
-    this._timeout = null;
-
-    this._reqno = 1;
-
     const _sendSocket = (data, done) => {
       socket.write(encode([this._reqno, data]) + `\n`, done);
     };
 
-    super.on('send', ({handleName, data}, done) => {
-      _sendSocket({event: 'handle', name: handleName, data}, done);
+    this.on(EVENTS.SEND, ({handleName, data}, done) => {
+      _sendSocket({event: EVENTS.HANDLE, name: handleName, data}, done);
     });
   }
 
@@ -36,16 +32,16 @@ export default class CheckClient extends EventEmitter {
     return Object.assign({}, this._info, {online: this._online});
   }
 
-  online() {
+  online(): void {
     if (!this._online) {
-      if (this._info.hasOwnProperty('connect')) {
+      if (this._info.hasOwnProperty(EVENTS.CONNECT)) {
         ++this._info.connect;
       } else {
         this._info.connect = 1;
       }
 
       delete this._info.offlineIn;
-      super.emit('join');
+      this.emit(EVENTS.JOIN);
     }
 
     this._online = true;
@@ -57,15 +53,15 @@ export default class CheckClient extends EventEmitter {
     this._timeout = setTimeout(() => {
       this._info.offlineIn = Time.Unix;
       this._online = false;
-      super.emit('offline', this.offline);
+      this.emit(EVENTS.OFFLINE, this.offline);
     }, Time.Seconds(5));
   }
 
-  get isOnline() {
+  get isOnline(): boolean {
     return Boolean(this._online);
   }
 
-  offline(callback = noop) {
+  offline(callback: (...args) => void = noop): void {
     setTimeout(callback, 10);
   }
 
@@ -78,6 +74,6 @@ export default class CheckClient extends EventEmitter {
    */
   send(handleName, data = {}, reqno, done = noop) {
     this._reqno = reqno;
-    super.emit('send', {handleName, data}, done);
+    this.emit(EVENTS.SEND, {handleName, data}, done);
   }
 }

@@ -4,20 +4,22 @@
  Contacts: https://github.com/wormen
  ---------------------------------------------
  */
-const {Server} = require('../build');
+
+import {Server, EVENTS} from '../';
 
 const ns = 'test';
 const server = Server(ns, 3500);
+server.listenHost('127.0.0.2');
 
 server.on(`${ns}:ping`, (req, res, ip) => {
   console.log(typeof req, req, ip)
 
-  // console.log('IP -->', ip);
-  // console.log('with client -->', req);
+  console.log('IP -->', ip);
+  console.log('with client -->', req);
   // res.send(null, Date.now());
 });
 
-server.on('client:connect', client => {
+server.on(EVENTS.CLIENT_CONNECTED, client => {
   console.log('client:connect', client);
 
   // send from clientID
@@ -38,7 +40,7 @@ server.on('client:connect', client => {
   });
 });
 
-server.on('client:disconnect', client => {
+server.on(EVENTS.CLIENT_DISCONNECTED, client => {
   console.log('client:disconnect', client)
 });
 
@@ -51,9 +53,10 @@ server.handle('testHandle', (req, res, ip) => {
 });
 
 
-// server.initMetrics();
-//
-// server.on('metrics', ({stats, statsQPS}) => {
-//   console.log('statsQPS -->', statsQPS);
-//   // console.log('stats -->', stats);
-// });
+// server.showMetrics();
+
+server.on(EVENTS.METRICS, ({stats, statsQPS}) => {
+  console.log('statsQPS -->', statsQPS);
+  // console.log('stats -->', stats);
+  console.log('');
+});

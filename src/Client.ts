@@ -1,16 +1,27 @@
-/**
- Copyright © Oleg Bogdanov
- Developer: Oleg Bogdanov
- Contacts: https://github.com/wormen
- ---------------------------------------------
- */
-import net from 'net';
-import dns from 'dns';
+import * as net from 'net';
+import * as dns from 'dns';
 import {EventEmitter} from 'events';
-import {AddLineReader, encode, getNS, isNullOrUndefined, noop, safeExecute} from './lib/utils';
+import {AddLineReader, encode, getNS, isNullOrUndefined, noop, safeExecute, isObject, isString} from './lib/utils';
 import Time from './lib/Time';
 
-const defaultOpts = {
+import EVENTS from './_events';
+
+interface IOptions {
+  timeout?: number;
+  autoPing?: boolean;
+  autoPingTimeout?: number;
+  clientID: string | null;
+  reconnectExp?: number;
+  reconnectMaxSleep?: number;
+  token?: string | null;
+}
+
+interface IHosts {
+  host: string;
+  port: number | string;
+}
+
+const defaultOpts: IOptions = {
   timeout: Time.Minute(2),
   autoPing: true,
   autoPingTimeout: Time.Seconds(1),
@@ -18,31 +29,38 @@ const defaultOpts = {
 };
 
 class Client extends EventEmitter {
-  constructor(namespace, config, options = {}) {
+  private _servers: any[] = [];
+  private _sockets: any[] = [];
+  private _namespace;
+  private _options: IOptions;
+  private _reconnectExp;
+  private _reconnectBase;
+  private _clientID: string;
+  private _curSock: number = 0;
+  private _reqno: number = 1;
+  private _queue = {};
+  private _state: number = 0;
+  private _methods: object = {};
+
+  constructor(namespace: string, hosts: IHosts[], options?: IOptions) {
     super();
 
-    this._servers = [];
     this._namespace = namespace;
 
-    this._options = Object.keys(options).length > 0
-      ? Object.assign({}, defaultOpts, options)
-      : Object.assign({}, defaultOpts);
+    if (isObject(options) && Object.keys(options).length > 0) {
+      this._options = Object.assign({}, defaultOpts, options);
+    } else {
+      this._options = Object.assign({}, defaultOpts);
+    }
 
     this._checkRequiredFields();
-    this._checkConfig(config);
+    this._checkHosts(hosts);
 
     this._reconnectExp = this._options.reconnectExp || 10;
     let maxSleep = this._options.reconnectMaxSleep || Time.Seconds(10);
     this._reconnectBase = Math.pow(maxSleep, 1 / this._reconnectExp);
 
     this._clientID = this._options.clientID;
-    this._sockets = [];
-    this._curSock = 0;
-    this._reqno = 1;
-    this._queue = {};
-    this._state = 0;
-
-    this._methods = {};
 
     this._init();
   }
@@ -51,27 +69,23 @@ class Client extends EventEmitter {
     return ErrLog(e);
   }
 
-  _init() {
-    this.on('send', (obj, callback = noop) => {
-      if (obj.hasOwnProperty('handle') && obj.hasOwnProperty('data')) {
+  _init(): void {
+    this.on(EVENTS.SEND, (obj, callback = noop) => {
+      if (obj.hasOwnProperty(EVENTS.HANDLE) && obj.hasOwnProperty('data')) {
         this.send(String(obj.handle), obj.data, callback, obj.delay);
       }
     });
   }
 
-  _checkRequiredFields() {
+  _checkRequiredFields(): void {
     if (isNullOrUndefined(this._options.clientID) || String(this._options.clientID).length === 0) {
       throw this.Error('Not specified "clientID" field');
     }
   }
 
-  _checkConfig(config) {
-    if (config.host && config.port) {
-      config = [config];
-    }
-
-    if (Array.isArray(config)) {
-      for (let {host, port} of config) {
+  _checkHosts(hosts: IHosts[]): void {
+    if (Array.isArray(hosts)) {
+      for (let {host, port} of hosts) {
         this._servers.push({
           host: host,
           port: port,
@@ -81,7 +95,7 @@ class Client extends EventEmitter {
     }
   }
 
-  _autoPing(init = true) {
+  _autoPing(init: boolean = true): void {
     if (this._options.autoPing && init) {
       let _tp = null;
       let _ps = () => {
@@ -97,7 +111,7 @@ class Client extends EventEmitter {
     }
   }
 
-  connect(callback = noop) {
+  connect(callback: (...args) => void = noop): void {
     let self = this;
     let connectCount = 0;
     let errs = [];
@@ -115,7 +129,7 @@ class Client extends EventEmitter {
       let queue = this._queue;
 
       let errback = (err) => {
-        socket.removeListener('error', errback);
+        socket.removeListener(EVENTS.ERROR, errback);
         let r = this._servers[index].reconnects;
         this._servers[index].reconnects++;
         let sleep = r < this._reconnectExp - 1 ? Math.floor(Math.pow(this._reconnectBase, r + 2)) : Time.Seconds(10);
@@ -127,14 +141,14 @@ class Client extends EventEmitter {
         socket.write(encode([this._reqno, data]) + '\n');
       };
 
-      socket.on('error', errback);
+      socket.on(EVENTS.ERROR, errback);
 
-      socket.on('connect', () => {
+      socket.on(EVENTS.CONNECT, () => {
         this._state = 2;
         socket.setNoDelay(true);
         this._servers[index].reconnects = 0;
 
-        this.emit('connect', {
+        this.emit(EVENTS.CONNECT, {
           host: this._servers[index].host,
           port: this._servers[index].port,
           namespace: this._namespace
@@ -142,15 +156,15 @@ class Client extends EventEmitter {
 
         // отправляем служебную о клиенте информацию на сервер
         sendPrivate({
-          event: 'clientInfo',
+          event: EVENTS.CLIENT_INFO,
           data: {
             clientID: this._clientID,
             token: this._options.token || null
           }
         });
 
-        socket.removeListener('error', errback);
-        socket.on('error', (err) => {
+        socket.removeListener(EVENTS.ERROR, errback);
+        socket.on(EVENTS.ERROR, (err) => {
           Object.keys(queue).map((key, i) => {
             setImmediate(queue[key].fn, err, null);
             delete queue[key];
@@ -166,8 +180,8 @@ class Client extends EventEmitter {
           }
         });
 
-        socket.on('handle', (name, data) => {
-          super.emit(getNS(['handle', name]), data);
+        socket.on(EVENTS.HANDLE, (name, data) => {
+          this.emit(getNS([EVENTS.HANDLE, name]), data);
         });
 
         if (this._sockets[index]) {
@@ -191,7 +205,7 @@ class Client extends EventEmitter {
 
           ErrLog(['Server', _host, 'disconnected! Trying to automatically to reconnect'].join(' '));
 
-          this.emit('disconnect', {
+          this.emit(EVENTS.DISCONNECTED, {
             host: this._servers[index].host,
             port: this._servers[index].port
           });
@@ -236,7 +250,7 @@ class Client extends EventEmitter {
     });
   }
 
-  disconnect(callback = noop) {
+  disconnect(callback: () => void = noop): void {
     this._state = 0;
     for (let i in this._sockets) {
       this._sockets[i].end();
@@ -245,16 +259,17 @@ class Client extends EventEmitter {
     setTimeout(callback, 100);
   };
 
-  ping(callback = noop) {
-    this.send('ping', {
+  ping(callback: (...args) => void = noop): void {
+    this.send(EVENTS.PING, {
       clientID: this._clientID,
       t: Date.now()
     }, callback);
   };
 
-  send(method, args, callback = noop, delay) {
+  send(method: string | null, args: any | any[], callback: (...args) => void = noop, delay?: number): void {
     if (!this._sockets.length) {
-      return setImmediate(this.send.bind(this), method, args, callback);
+      setImmediate(this.send.bind(this), method, args, callback);
+      return;
     }
 
     let data;
@@ -284,9 +299,10 @@ class Client extends EventEmitter {
     }
   }
 
-  sendAll(method, args, callback, delay) {
+  sendAll(method: string | null, args: any | any[], callback: (...args) => void = noop, delay?: number): void {
     if (!this._sockets.length) {
-      return setImmediate(this.send.bind(this), method, args, callback);
+      setImmediate(this.send.bind(this), method, args, callback);
+      return;
     }
 
     let data;
@@ -314,7 +330,7 @@ class Client extends EventEmitter {
     }
   }
 
-  clean() {
+  clean(): void {
     for (let i in this._queue) {
       let job = this._queue[i];
       if (job.ts < Date.now()) {
@@ -326,12 +342,12 @@ class Client extends EventEmitter {
   }
 }
 
-export default function (namespace, config, options) {
-  return new Client(namespace, config, options);
+export default function (namespace: string, hosts: IHosts[], options?: IOptions) {
+  return new Client(namespace, hosts, options);
 }
 
 function ErrLog(e) {
-  if (typeof e === 'string') {
+  if (isString(e)) {
     e = new Error(e);
   }
   console.error(e);
